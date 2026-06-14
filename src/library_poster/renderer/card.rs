@@ -7,6 +7,7 @@ use super::utils::{
 use super::{Fonts, Result};
 use crate::library_poster::RenderConfig;
 
+/// 生成右侧悬浮圆角主图、左侧标题的卡片风格。
 pub fn render(
     images: &[DynamicImage],
     title: &str,

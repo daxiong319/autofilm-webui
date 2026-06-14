@@ -1,4 +1,6 @@
+mod blur;
 mod card;
+mod collage;
 mod split;
 mod utils;
 
@@ -18,9 +20,6 @@ pub struct Fonts {
 pub enum Error {
     #[error("海报渲染至少需要一张素材图片")]
     MissingImage,
-
-    #[error("海报风格尚未实现: {0:?}")]
-    UnsupportedStyle(Style),
 
     #[error("分辨率配置无效: {0}")]
     InvalidResolution(String),
@@ -44,7 +43,8 @@ pub fn render(
     match config.style {
         Style::Card => card::render(images, title, subtitle, fonts, config, dimensions),
         Style::Split => split::render(images, title, subtitle, fonts, config, dimensions),
-        style => Err(Error::UnsupportedStyle(style)),
+        Style::Collage => collage::render(images, title, subtitle, fonts, config, dimensions),
+        Style::Blur => blur::render(images, title, subtitle, fonts, config, dimensions),
     }
 }
 
@@ -71,8 +71,8 @@ mod tests {
     }
 
     #[test]
-    fn renders_card_and_split_at_requested_resolution() {
-        for style in [Style::Card, Style::Split] {
+    fn renders_all_styles_at_requested_resolution() {
+        for style in [Style::Card, Style::Split, Style::Collage, Style::Blur] {
             let config = RenderConfig {
                 style,
                 resolution: Resolution::Custom(640, 360),
