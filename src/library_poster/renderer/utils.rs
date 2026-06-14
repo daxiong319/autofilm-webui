@@ -146,7 +146,6 @@ pub fn apply_rounded_corners(image: &mut RgbaImage, radius: u32) {
 }
 
 /// 将图片和柔化投影绘制到画布上。
-#[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn overlay_with_shadow(
     canvas: &mut RgbaImage,
@@ -182,15 +181,6 @@ pub fn overlay_with_shadow(
         y + offset_y - i64::from(padding),
     );
     overlay(canvas, image, x, y);
-}
-
-pub fn paste_centered(canvas: &mut RgbaImage, image: &RgbaImage, center_x: i64, center_y: i64) {
-    overlay(
-        canvas,
-        image,
-        center_x - i64::from(image.width()) / 2,
-        center_y - i64::from(image.height()) / 2,
-    );
 }
 
 #[allow(clippy::too_many_arguments)]
