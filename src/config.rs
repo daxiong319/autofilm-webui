@@ -1,4 +1,4 @@
-use crate::{alist, alist2strm, ani2alist};
+use crate::{alist, alist2strm, ani2alist, library_poster, media_server};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -32,6 +32,10 @@ pub struct Config {
     pub alist2strm_tasks: Vec<alist2strm::Config>,
     #[serde(default)]
     pub ani2alist_tasks: Vec<ani2alist::Config>,
+    #[serde(default)]
+    pub media_servers: Vec<media_server::Config>,
+    #[serde(default)]
+    pub library_poster_tasks: Vec<library_poster::Config>,
 }
 
 impl Config {

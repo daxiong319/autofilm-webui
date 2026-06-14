@@ -5,7 +5,9 @@ mod app_info;
 mod args;
 mod config;
 mod extensions;
+mod library_poster;
 mod logging;
+mod media_server;
 mod schedule;
 
 use args::CliArgs;
