@@ -1,5 +1,6 @@
 mod config;
 mod renderer;
+mod runner;
 
 pub use config::*;
-pub(crate) use renderer::{Fonts, render};
+pub use runner::{LibraryPoster, Summary};
