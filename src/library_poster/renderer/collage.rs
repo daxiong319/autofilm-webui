@@ -26,6 +26,7 @@ pub fn render(
     let card_height = (card_width as f32 * 1.5) as u32;
     let column_spacing = width as f32 * 0.025;
     let row_spacing = height as f32 * 0.05;
+    let column_stagger = card_height as f32 * 0.35;
     let grid_width = card_width as f32 * 3.0 + column_spacing * 2.0;
     let grid_height = card_height as f32 * 3.0 + row_spacing * 2.0;
     let start_x = width as f32 * 0.84 - grid_width / 2.0;
@@ -34,7 +35,8 @@ pub fn render(
     let rotation_padding = card_height as f32;
     let collage_width = (grid_width + rotation_padding * 2.0).ceil() as u32;
     let collage_height =
-        (grid_height + height as f32 * 0.06 + rotation_padding * 2.0).ceil() as u32;
+        (grid_height + column_stagger + height as f32 * 0.06 + rotation_padding * 2.0).ceil()
+            as u32;
 
     let mut posters = (0..9)
         .map(|index| {
@@ -46,7 +48,11 @@ pub fn render(
             let center_y = start_y
                 + row as f32 * (card_height as f32 + row_spacing)
                 + card_height as f32 / 2.0
-                + height as f32 * column as f32 * 0.03;
+                + if column % 2 == 0 {
+                    -column_stagger / 2.0
+                } else {
+                    column_stagger / 2.0
+                };
             let source = &images[index % images.len()];
             let mut card = cover(source, card_width, card_height);
             apply_rounded_corners(&mut card, (card_width as f32 * 0.08) as u32);
