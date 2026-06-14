@@ -1,5 +1,5 @@
 use image::imageops::overlay;
-use image::{DynamicImage, Rgba};
+use image::{DynamicImage, Rgba, RgbaImage};
 use imageproc::geometric_transformations::{Interpolation, rotate_about_center};
 
 use super::utils::{
@@ -31,29 +31,54 @@ pub fn render(
     let start_x = width as f32 * 0.84 - grid_width / 2.0;
     let start_y = height as f32 * 0.50 - grid_height / 2.0;
     let angle = -18.0_f32.to_radians();
+    let collage_width = grid_width.ceil() as u32;
+    let collage_height = (grid_height + height as f32 * 0.06).ceil() as u32;
 
-    for index in 0..9 {
-        let column = index / 3;
-        let row = index % 3;
-        let source = &images[index % images.len()];
-        let mut card = cover(source, card_width, card_height);
-        apply_rounded_corners(&mut card, (card_width as f32 * 0.08) as u32);
-        let rotated = rotate_about_center(&card, angle, Interpolation::Bicubic, Rgba([0, 0, 0, 0]));
+    let mut posters = (0..9)
+        .map(|index| {
+            let column = index / 3;
+            let row = index % 3;
+            let center_x = start_x
+                + column as f32 * (card_width as f32 + column_spacing)
+                + card_width as f32 / 2.0;
+            let center_y = start_y
+                + row as f32 * (card_height as f32 + row_spacing)
+                + card_height as f32 / 2.0
+                + height as f32 * column as f32 * 0.03;
+            let source = &images[index % images.len()];
+            let mut card = cover(source, card_width, card_height);
+            apply_rounded_corners(&mut card, (card_width as f32 * 0.08) as u32);
 
-        let center_x = start_x
-            + column as f32 * (card_width as f32 + column_spacing)
-            + card_width as f32 / 2.0;
-        let center_y = start_y
-            + row as f32 * (card_height as f32 + row_spacing)
-            + card_height as f32 / 2.0
-            + height as f32 * column as f32 * 0.03;
+            PosterLayer {
+                card,
+                center_x: center_x - start_x,
+                center_y: center_y - start_y,
+            }
+        })
+        .collect::<Vec<_>>();
+    posters.sort_by(|left, right| {
+        left.center_y
+            .total_cmp(&right.center_y)
+            .then_with(|| left.center_x.total_cmp(&right.center_x))
+    });
+
+    let mut collage = RgbaImage::from_pixel(collage_width, collage_height, Rgba([0, 0, 0, 0]));
+    for poster in posters {
         overlay(
-            &mut canvas,
-            &rotated,
-            (center_x - rotated.width() as f32 / 2.0) as i64,
-            (center_y - rotated.height() as f32 / 2.0) as i64,
+            &mut collage,
+            &poster.card,
+            (poster.center_x - poster.card.width() as f32 / 2.0) as i64,
+            (poster.center_y - poster.card.height() as f32 / 2.0) as i64,
         );
     }
+
+    let rotated = rotate_about_center(&collage, angle, Interpolation::Bicubic, Rgba([0, 0, 0, 0]));
+    overlay(
+        &mut canvas,
+        &rotated,
+        (start_x + collage_width as f32 / 2.0 - rotated.width() as f32 / 2.0) as i64,
+        (start_y + collage_height as f32 / 2.0 - rotated.height() as f32 / 2.0) as i64,
+    );
 
     draw_titles(
         &mut canvas,
@@ -67,6 +92,12 @@ pub fn render(
         text_color(theme),
     );
     Ok(canvas)
+}
+
+struct PosterLayer {
+    card: RgbaImage,
+    center_x: f32,
+    center_y: f32,
 }
 
 fn text_color(color: Rgba<u8>) -> Rgba<u8> {
