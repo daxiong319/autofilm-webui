@@ -52,6 +52,7 @@ pub fn render(
 mod tests {
     use ab_glyph::FontArc;
     use image::{DynamicImage, Rgb, RgbImage};
+    use rand::seq::SliceRandom;
 
     use super::*;
     use crate::library_poster::Resolution;
@@ -85,6 +86,61 @@ mod tests {
             let poster = render(&images(), "电影", "MOVIE", &fonts(), &config).unwrap();
 
             assert_eq!(poster.dimensions(), (640, 360));
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn generates_readme_previews() {
+        let previews = [
+            (Style::Card, "动漫", "ANIME", "img/海报/动漫", "card"),
+            (Style::Split, "电影", "MOVIE", "img/海报/电影", "split"),
+            (Style::Collage, "动漫", "ANIME", "img/海报/动漫", "card"),
+            (
+                Style::Blur,
+                "电视剧",
+                "TV SERIES",
+                "img/海报/电视剧",
+                "collage",
+            ),
+        ];
+        std::fs::create_dir_all("img/library-poster").unwrap();
+
+        for (style, title, subtitle, source_dir, filename) in previews {
+            let mut paths = std::fs::read_dir(source_dir)
+                .unwrap()
+                .filter_map(|entry| entry.ok())
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.extension()
+                        .and_then(|extension| extension.to_str())
+                        .is_some_and(|extension| {
+                            matches!(
+                                extension.to_ascii_lowercase().as_str(),
+                                "jpg" | "jpeg" | "png"
+                            )
+                        })
+                })
+                .collect::<Vec<_>>();
+            paths.shuffle(&mut rand::rng());
+            paths.truncate(if matches!(style, Style::Collage) {
+                9
+            } else {
+                1
+            });
+            let images = paths
+                .iter()
+                .map(|path| image::open(path).unwrap())
+                .collect::<Vec<_>>();
+            let config = RenderConfig {
+                style,
+                resolution: Resolution::P1080,
+                ..RenderConfig::default()
+            };
+            let poster = render(&images, title, subtitle, &fonts(), &config).unwrap();
+            poster
+                .save(format!("img/library-poster/{filename}.png"))
+                .unwrap();
         }
     }
 }
