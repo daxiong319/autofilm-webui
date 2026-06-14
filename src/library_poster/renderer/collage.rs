@@ -31,8 +31,10 @@ pub fn render(
     let start_x = width as f32 * 0.84 - grid_width / 2.0;
     let start_y = height as f32 * 0.50 - grid_height / 2.0;
     let angle = 18.0_f32.to_radians();
-    let collage_width = grid_width.ceil() as u32;
-    let collage_height = (grid_height + height as f32 * 0.06).ceil() as u32;
+    let rotation_padding = card_height as f32;
+    let collage_width = (grid_width + rotation_padding * 2.0).ceil() as u32;
+    let collage_height =
+        (grid_height + height as f32 * 0.06 + rotation_padding * 2.0).ceil() as u32;
 
     let mut posters = (0..9)
         .map(|index| {
@@ -51,8 +53,8 @@ pub fn render(
 
             PosterLayer {
                 card,
-                center_x: center_x - start_x,
-                center_y: center_y - start_y,
+                center_x: center_x - start_x + rotation_padding,
+                center_y: center_y - start_y + rotation_padding,
             }
         })
         .collect::<Vec<_>>();
@@ -76,8 +78,10 @@ pub fn render(
     overlay(
         &mut canvas,
         &rotated,
-        (start_x + collage_width as f32 / 2.0 - rotated.width() as f32 / 2.0) as i64,
-        (start_y + collage_height as f32 / 2.0 - rotated.height() as f32 / 2.0) as i64,
+        (start_x - rotation_padding + collage_width as f32 / 2.0 - rotated.width() as f32 / 2.0)
+            as i64,
+        (start_y - rotation_padding + collage_height as f32 / 2.0 - rotated.height() as f32 / 2.0)
+            as i64,
     );
 
     draw_titles(
