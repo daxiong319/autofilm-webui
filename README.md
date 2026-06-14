@@ -65,9 +65,36 @@
 
 # 功能演示
 ## LibraryPoster
-美化媒体库海报封面图
 
-![LibraryPoster](./img/LibraryPoster.png)
+视觉设计参考了[HappyQuQu/jellyfin-library-poster](https://github.com/HappyQuQu/jellyfin-library-poster)和[MoviePilot-Plugins/mediacovergenerator](https://github.com/justzerock/MoviePilot-Plugins/tree/main/plugins.v2/mediacovergenerator)，
+图像处理流程由 AutoFilm 使用 Rust 重新实现。
+
+<table width="100%">
+  <tr>
+    <td align="center" width="50%">
+      <strong>blur</strong>
+      <br>
+      <img src="./img/library-poster/blur.png" alt="LibraryPoster blur style" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <strong>card</strong>
+      <br>
+      <img src="./img/library-poster/card.png" alt="LibraryPoster card style" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <strong>collage</strong>
+      <br>
+      <img src="./img/library-poster/collage.png" alt="LibraryPoster collage style" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <strong>split</strong>
+      <br>
+      <img src="./img/library-poster/split.png" alt="LibraryPoster split style" width="100%">
+    </td>
+  </tr>
+</table>
 
 # 更新日志
 - 2026.6.3：v1.5.1，Alist2Strm 新增 public_url 支持内外网地址分离；新增 .strm 智能保护防止大量误删；重构 HTTP 客户端设计；更新 Docker Python 版本与 Pillow 依赖；更新项目相关链接
