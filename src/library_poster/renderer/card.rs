@@ -34,11 +34,11 @@ pub fn render(
     let card_height = (height as f32 * 0.76) as u32;
     let card_width = (card_height as f32 * 0.70) as u32;
     let center_x = width as f32 * 0.745;
-    let center_y = height as f32 * 0.51;
-    let horizontal_step = width as f32 * 0.060;
+    let bottom_anchor_y = height as f32 * 0.885;
+    let pivot_step = width as f32 * 0.008;
 
     // 根据实际素材数量使用 7/5/3/1 层，避免重复图片填满卡片堆。
-    let layers = layers_for_count(images.len(), horizontal_step);
+    let layers = layers_for_count(images.len(), pivot_step);
 
     for (depth, layer) in layers.iter().copied().enumerate() {
         let layer_width = (card_width as f32 * layer.scale) as u32;
@@ -50,14 +50,13 @@ pub fn render(
             layer.darkness,
             layer.opacity,
         );
-        let rotated = rotate_with_padding(&card, layer.angle);
-        let vertical_offset = (1.0 - layer.scale) * height as f32 * 0.18;
+        let rotated = rotate_around_bottom_anchor(&card, layer.angle);
         let shadow_strength = 88 + depth as u8 * 12;
         overlay_with_shadow(
             &mut canvas,
-            &rotated,
-            (center_x + layer.offset - rotated.width() as f32 / 2.0) as i64,
-            (center_y + vertical_offset - rotated.height() as f32 / 2.0) as i64,
+            &rotated.image,
+            (center_x + layer.offset - rotated.anchor_x) as i64,
+            (bottom_anchor_y - rotated.anchor_y) as i64,
             (height as f32 * 0.010) as i64,
             (height as f32 * 0.014) as i64,
             height as f32 * 0.012,
@@ -90,7 +89,7 @@ struct Layer {
     opacity: u8,
 }
 
-fn layers_for_count(image_count: usize, horizontal_step: f32) -> Vec<Layer> {
+fn layers_for_count(image_count: usize, pivot_step: f32) -> Vec<Layer> {
     let visible_count = match image_count {
         7.. => 7,
         5.. => 5,
@@ -103,11 +102,11 @@ fn layers_for_count(image_count: usize, horizontal_step: f32) -> Vec<Layer> {
     // 先从最外侧绘制到内侧，最后绘制中央主卡。
     for distance in (1..=side_count).rev() {
         let progress = distance as f32 / side_count.max(1) as f32;
-        let scale = 1.0 - progress * 0.14;
-        let darkness = progress * 0.36;
-        let opacity = (255.0 - progress * 58.0) as u8;
-        let angle = progress * 9.0;
-        let offset = horizontal_step * distance as f32 * 0.78;
+        let scale = 1.0 - progress * 0.055;
+        let darkness = progress * 0.30;
+        let opacity = (255.0 - progress * 36.0) as u8;
+        let angle = progress * 11.5;
+        let offset = pivot_step * distance as f32;
         let left_index = distance * 2 - 1;
         let right_index = distance * 2;
 
@@ -159,24 +158,47 @@ fn prepare_card(
     card
 }
 
-/// 先给卡片补透明边距再旋转，避免旋转后的圆角被原始边界裁掉。
-fn rotate_with_padding(card: &RgbaImage, angle: f32) -> RgbaImage {
+struct AnchoredCard {
+    image: RgbaImage,
+    anchor_x: f32,
+    anchor_y: f32,
+}
+
+/// 以卡片底部中央为共同轴心旋转，让扇形顶部展开而底部保持收束。
+fn rotate_around_bottom_anchor(card: &RgbaImage, angle: f32) -> AnchoredCard {
     if angle == 0.0 {
-        return card.clone();
+        return AnchoredCard {
+            image: card.clone(),
+            anchor_x: card.width() as f32 / 2.0,
+            anchor_y: card.height() as f32 * 0.96,
+        };
     }
-    let padding = (card.width().max(card.height()) as f32 * 0.10) as u32;
-    let mut padded = RgbaImage::from_pixel(
-        card.width() + padding * 2,
-        card.height() + padding * 2,
-        Rgba([0, 0, 0, 0]),
+
+    let pivot_from_top = card.height() as f32 * 0.96;
+    let half_width = card.width() as f32 / 2.0;
+    let top_radius = half_width.hypot(pivot_from_top);
+    let bottom_radius = half_width.hypot(card.height() as f32 - pivot_from_top);
+    let radius = top_radius.max(bottom_radius);
+    let canvas_size = (radius.ceil() as u32 * 2).max(1);
+    let center = canvas_size as f32 / 2.0;
+    let mut pivot_canvas = RgbaImage::from_pixel(canvas_size, canvas_size, Rgba([0, 0, 0, 0]));
+    image::imageops::overlay(
+        &mut pivot_canvas,
+        card,
+        (center - half_width) as i64,
+        (center - pivot_from_top) as i64,
     );
-    image::imageops::overlay(&mut padded, card, i64::from(padding), i64::from(padding));
-    rotate_about_center(
-        &padded,
+    let image = rotate_about_center(
+        &pivot_canvas,
         angle.to_radians(),
         Interpolation::Bicubic,
         Rgba([0, 0, 0, 0]),
-    )
+    );
+    AnchoredCard {
+        image,
+        anchor_x: center,
+        anchor_y: center,
+    }
 }
 
 #[cfg(test)]
@@ -197,14 +219,16 @@ mod tests {
     }
 
     #[test]
-    fn rotating_card_keeps_transparent_padding() {
+    fn rotating_card_keeps_bottom_anchor_centered() {
         let card = RgbaImage::from_pixel(200, 300, Rgba([80, 160, 220, 255]));
 
-        let rotated = rotate_with_padding(&card, 8.0);
+        let rotated = rotate_around_bottom_anchor(&card, 8.0);
 
-        assert!(rotated.width() > card.width());
-        assert!(rotated.height() > card.height());
-        assert_eq!(rotated.get_pixel(0, 0)[3], 0);
+        assert!(rotated.image.width() > card.width());
+        assert!(rotated.image.height() > card.height());
+        assert_eq!(rotated.image.get_pixel(0, 0)[3], 0);
+        assert_eq!(rotated.anchor_x, rotated.image.width() as f32 / 2.0);
+        assert_eq!(rotated.anchor_y, rotated.image.height() as f32 / 2.0);
     }
 
     #[test]
