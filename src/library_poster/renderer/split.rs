@@ -28,22 +28,24 @@ pub fn render(
     );
 
     let foreground = align_image_right(source, width, height);
-    let shadow_width = (width as f32 * 0.018).max(3.0);
+    let feather_width = (width as f32 * 0.004).max(1.5);
+    let shadow_width = (width as f32 * 0.012).max(3.0);
     for y in 0..height {
         let progress = y as f32 / height.max(1) as f32;
         let boundary = width as f32 * (0.55 - progress * 0.15);
-        let shadow_start = (boundary - shadow_width).max(0.0) as u32;
-        let foreground_start = boundary.max(0.0) as u32;
+        let blend_start = (boundary - feather_width).max(0.0) as u32;
 
-        for x in shadow_start..foreground_start.min(width) {
-            let strength = (x as f32 - shadow_start as f32) / shadow_width;
-            let pixel = canvas.get_pixel_mut(x, y);
-            for channel in 0..3 {
-                pixel[channel] = (pixel[channel] as f32 * (0.82 - strength * 0.18)) as u8;
-            }
-        }
-        for x in foreground_start..width {
-            canvas.put_pixel(x, y, *foreground.get_pixel(x, y));
+        for x in blend_start..width {
+            let distance = x as f32 - boundary;
+            let foreground_alpha = smoothstep(-feather_width, feather_width, distance);
+            let shadow_alpha = edge_shadow(distance, shadow_width);
+            let background = *canvas.get_pixel(x, y);
+            let foreground = *foreground.get_pixel(x, y);
+            canvas.put_pixel(
+                x,
+                y,
+                blend_pixel(background, foreground, foreground_alpha, shadow_alpha),
+            );
         }
     }
 
@@ -93,6 +95,37 @@ fn align_image_right(source: &DynamicImage, width: u32, height: u32) -> RgbaImag
     foreground
 }
 
+fn smoothstep(start: f32, end: f32, value: f32) -> f32 {
+    let progress = ((value - start) / (end - start)).clamp(0.0, 1.0);
+    progress * progress * (3.0 - 2.0 * progress)
+}
+
+/// 在分割线右侧生成轻柔投影，避免形成生硬的黑色描边。
+fn edge_shadow(distance: f32, width: f32) -> f32 {
+    if distance < -width || distance > width * 2.0 {
+        return 0.0;
+    }
+    let center = width * 0.25;
+    let deviation = width * 0.75;
+    let normalized = (distance - center) / deviation;
+    (-0.5 * normalized * normalized).exp() * 0.16
+}
+
+fn blend_pixel(
+    background: Rgba<u8>,
+    foreground: Rgba<u8>,
+    foreground_alpha: f32,
+    shadow_alpha: f32,
+) -> Rgba<u8> {
+    let mut pixel = [255; 4];
+    for channel in 0..3 {
+        let blended = background[channel] as f32 * (1.0 - foreground_alpha)
+            + foreground[channel] as f32 * foreground_alpha;
+        pixel[channel] = (blended * (1.0 - shadow_alpha)).clamp(0.0, 255.0) as u8;
+    }
+    Rgba(pixel)
+}
+
 #[cfg(test)]
 mod tests {
     use image::{DynamicImage, Rgb, RgbImage};
@@ -107,5 +140,17 @@ mod tests {
 
         assert_eq!(foreground.dimensions(), (640, 360));
         assert_eq!(foreground.get_pixel(639, 180), &Rgba([40, 120, 220, 255]));
+    }
+
+    #[test]
+    fn split_edge_blends_without_black_outline() {
+        let background = Rgba([80, 40, 40, 255]);
+        let foreground = Rgba([240, 220, 200, 255]);
+
+        let middle = blend_pixel(background, foreground, 0.5, 0.12);
+
+        assert!(middle[0] > background[0]);
+        assert!(middle[0] < foreground[0]);
+        assert!(middle[1] > background[1]);
     }
 }
