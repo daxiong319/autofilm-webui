@@ -9,10 +9,18 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 serde_yaml = "0.9.34"
 alist = { package = "alist-client-rs", path = "alist-client-rs" }
+ab_glyph = "0.2.32"
 chrono = "0.4.45"
 chrono-tz = "0.10"
-iana-time-zone = "0.1"
 futures-util = "0.3.32"
+iana-time-zone = "0.1"
+image = { version = "0.25.8", default-features = false, features = [
+    "gif",
+    "jpeg",
+    "png",
+    "webp",
+] }
+imageproc = "0.25.0"
 regex = "1.12.2"
 reqwest = { version = "0.12.24", default-features = false, features = [
     "http2",
