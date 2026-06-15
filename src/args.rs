@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(
-    name = app_info::VERSION_INFO.app_name,
+    name = app_info::APPLICATION_INFO.app_name,
     disable_version_flag = true
 )]
 pub struct CliArgs {

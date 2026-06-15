@@ -1,9 +1,12 @@
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
-pub struct VersionInfo {
+pub struct ApplicationInfo {
     pub app_name: &'static str,
     pub app_version: &'static str,
+    pub description: &'static str,
+    pub authors: &'static str,
+    pub repository: &'static str,
     pub rustc_version: &'static str,
     pub git_commit: &'static str,
     pub git_branch: &'static str,
@@ -12,9 +15,12 @@ pub struct VersionInfo {
     pub build_profile: &'static str,
 }
 
-pub static VERSION_INFO: VersionInfo = VersionInfo {
+pub static APPLICATION_INFO: ApplicationInfo = ApplicationInfo {
     app_name: "AutoFilm",
     app_version: concat!("v", env!("CARGO_PKG_VERSION")),
+    description: env!("CARGO_PKG_DESCRIPTION"),
+    authors: env!("CARGO_PKG_AUTHORS"),
+    repository: env!("CARGO_PKG_REPOSITORY"),
     rustc_version: env!("AUTOFILM_RUSTC_VERSION"),
     git_commit: env!("AUTOFILM_GIT_COMMIT"),
     git_branch: env!("AUTOFILM_GIT_BRANCH"),
@@ -35,7 +41,10 @@ pub const LOGO: &str = concat!(
 pub fn print_banner() {
     // 启动横幅保持 Python 版本的风格，版本号直接来自 Cargo.toml。
     println!("{LOGO}");
-    let title = format!(" {} {} ", VERSION_INFO.app_name, VERSION_INFO.app_version);
+    let title = format!(
+        " {} {} ",
+        APPLICATION_INFO.app_name, APPLICATION_INFO.app_version
+    );
     println!("{}", title.center(65, "="));
     println!();
 }
