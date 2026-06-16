@@ -1,4 +1,4 @@
-alist:
+alist:                                      # AList 服务器列表（兼容 OpenList），支持多个服务器配置；每个服务器配置一个独立的 ID，供后续任务引用
   - id: 我的Alist                            # 标识 ID，用于关联 AList 客户端对象
     base_url: http://alist:5244             # AList 服务器地址；未写协议时会默认补 https://
     public_url: https://alist.example.com   # 公共访问地址，用于 AlistURL 模式生成 .strm 内容（可选）
@@ -127,15 +127,14 @@ library_poster_tasks:
     subtitle_font: /fonts/en.otf            # 副标题字体路径
     render:
       style: collage                        # 风格可选：card、split、collage、blur
-      resolution: 1080p                     # 预设分辨率：480p、720p、1080p
+      resolution: 1080p                     # 预设分辨率：480p、720p、1080p；或者是自定义分辨率：{width: 1600, height: 900}
       blur_radius: 50                       # 模糊半径，以 1080p 为基准自动缩放
       color_strength: 0.8                   # 主题色叠加强度，范围 0.0～1.0
     libraries:                              # 只处理这里明确列出的媒体库
       - name: 动漫                           # Jellyfin/Emby 中的媒体库名称
         title: 动漫                          # 海报主标题；留空时使用媒体库名称
         subtitle: ANIME                     # 海报副标题
-        sort: date_last_content_added       # random、date_created、date_last_content_added
-
+        sort: date_last_content_added       # 可选排序方式：random、date_created、date_last_content_added
       - name: 电影
         title: 电影
         subtitle: MOVIE
