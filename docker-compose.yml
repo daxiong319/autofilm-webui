@@ -43,4 +43,5 @@ services:
     depends_on:
       - autofilm
 
-volumes: {}
+volumes:
+  autofilm:
