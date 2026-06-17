@@ -595,33 +595,27 @@ async def system_status(_=Depends(verify_token)):
     }
 
 # ──────────────────────────────────────────────
-# 静态文件服务（必须在 SPA 路由之前）
+# 静态文件服务 + SPA 路由兜底（必须在所有 API 路由之后）
 # ──────────────────────────────────────────────
 if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
-
-# ──────────────────────────────────────────────
-# SPA 路由兜底（解决刷新 404）
-# ──────────────────────────────────────────────
-@app.get("/")
-async def serve_root():
-    """根路径返回 index.html"""
-    if STATIC_DIR.exists():
+    # 使用 StaticFiles 服务整个 dist 目录
+    from fastapi.responses import FileResponse
+    
+    @app.get("/", include_in_schema=False)
+    async def serve_index():
+        return FileResponse(str(STATIC_DIR / "index.html"))
+    
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_static_or_spa(full_path: str):
+        # 先尝试返回静态文件（JS/CSS/图片等）
+        file_path = STATIC_DIR / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(str(file_path))
+        # 否则返回 index.html（SPA 路由兜底）
         index_file = STATIC_DIR / "index.html"
         if index_file.exists():
             return FileResponse(str(index_file))
-    raise HTTPException(404, "前端文件不存在")
-
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    """SPA 路由兜底：非 /api/* 请求都返回 index.html"""
-    if full_path.startswith("api/") or full_path.startswith("api"):
-        raise HTTPException(404, "API 路由不存在")
-    if STATIC_DIR.exists():
-        index_file = STATIC_DIR / "index.html"
-        if index_file.exists():
-            return FileResponse(str(index_file))
-    raise HTTPException(404, "前端文件不存在")
+        raise HTTPException(404, "File not found")
 
 if __name__ == "__main__":
     port = int(os.environ.get("WEBUI_PORT", "8096"))
