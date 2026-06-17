@@ -18,10 +18,6 @@ WORKDIR /webui
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy autofilm binary from official image
-COPY --from=akimio/autofilm:latest /app/autofilm /usr/local/bin/autofilm
-RUN chmod +x /usr/local/bin/autofilm
-
 # Copy backend code
 COPY backend/ .
 

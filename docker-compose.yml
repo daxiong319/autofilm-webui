@@ -33,11 +33,12 @@ services:
     volumes:
       - ./config:/config          # 与 autofilm 共享配置目录
       - ./logs:/logs              # 与 autofilm 共享日志目录
+      - autofilm:/app:ro          # 从 autofilm 容器只读挂载二进制
     environment:
       - TZ=Asia/Shanghai
       - AUTOFILM_CONFIG=/config/config.yaml
       - AUTOFILM_LOG_DIR=/logs
-      - AUTOFILM_BIN=/usr/local/bin/autofilm   # 如需手动触发，需要挂载二进制
+      - AUTOFILM_BIN=/app/autofilm
       - WEBUI_PORT=8096
     depends_on:
       - autofilm
