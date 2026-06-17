@@ -40,6 +40,10 @@ pub struct CliArgs {
     /// 显示版本、Git 与编译信息
     #[arg(short = 'v', long = "version", default_value_t = false)]
     pub show_version: bool,
+
+    /// 单次运行指定任务 ID（不启动调度器，执行后退出）
+    #[arg(long = "run-once", value_name = "TASK_ID")]
+    pub run_once: Option<String>,
 }
 
 impl CliArgs {

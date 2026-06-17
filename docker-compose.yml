@@ -1,0 +1,45 @@
+version: '3.8'
+
+# ──────────────────────────────────────────────────────────────────
+# AutoFilm + WebUI 一体化部署
+# 访问地址: http://你的IP:8096
+# ──────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── AutoFilm 核心任务引擎（Rust 二进制）──────────────────────────
+  autofilm:
+    image: akimio/autofilm:latest
+    container_name: autofilm
+    restart: unless-stopped
+    volumes:
+      - ./config:/config          # 配置文件目录（config.yaml 在此）
+      - ./logs:/logs              # 日志目录
+      - ./media:/media            # STRM 输出目录
+    environment:
+      - TZ=Asia/Shanghai
+    # autofilm 默认从 /config/config.yaml 读取配置
+    command: ["./autofilm", "--config", "/config/config.yaml", "--log-path", "/logs"]
+
+  # ── WebUI 管理面板（Python FastAPI + Vue3）────────────────────────
+  webui:
+    build:
+      context: ./webui
+      dockerfile: Dockerfile
+    container_name: autofilm-webui
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+    volumes:
+      - ./config:/config          # 与 autofilm 共享配置目录
+      - ./logs:/logs              # 与 autofilm 共享日志目录
+    environment:
+      - TZ=Asia/Shanghai
+      - AUTOFILM_CONFIG=/config/config.yaml
+      - AUTOFILM_LOG_DIR=/logs
+      - AUTOFILM_BIN=/usr/local/bin/autofilm   # 如需手动触发，需要挂载二进制
+      - WEBUI_PORT=8096
+    depends_on:
+      - autofilm
+
+volumes: {}
