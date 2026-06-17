@@ -595,27 +595,27 @@ async def system_status(_=Depends(verify_token)):
     }
 
 # ──────────────────────────────────────────────
-# 静态文件服务 + SPA 路由兜底（必须在所有 API 路由之后）
+# Static files and SPA fallback
 # ──────────────────────────────────────────────
 if STATIC_DIR.exists():
-    # 使用 StaticFiles 服务整个 dist 目录
-    from fastapi.responses import FileResponse
-    
+    # Mount /assets directory for JS/CSS files (MUST be before catch-all routes)
+    assets_dir = STATIC_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    # Root path serves index.html
     @app.get("/", include_in_schema=False)
-    async def serve_index():
+    async def serve_root_index():
         return FileResponse(str(STATIC_DIR / "index.html"))
-    
+
+    # SPA fallback for Vue Router history mode
+    # This catches all non-API, non-asset paths
     @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_static_or_spa(full_path: str):
-        # 先尝试返回静态文件（JS/CSS/图片等）
-        file_path = STATIC_DIR / full_path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(str(file_path))
-        # 否则返回 index.html（SPA 路由兜底）
-        index_file = STATIC_DIR / "index.html"
-        if index_file.exists():
-            return FileResponse(str(index_file))
-        raise HTTPException(404, "File not found")
+    async def serve_spa_fallback(full_path: str):
+        # Don't intercept API routes (they're defined above)
+        # Don't intercept asset routes (they're mounted above)
+        # Just return index.html for client-side routing
+        return FileResponse(str(STATIC_DIR / "index.html"))
 
 if __name__ == "__main__":
     port = int(os.environ.get("WEBUI_PORT", "8096"))
