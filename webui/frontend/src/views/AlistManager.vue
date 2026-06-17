@@ -22,8 +22,19 @@
         </template>
       </el-table-column>
       <el-table-column prop="wait_time" label="请求间隔(s)" width="110" />
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="状态" width="100">
         <template #default="{ row }">
+          <el-tag v-if="row.status === 'ok'" type="success" size="small">正常</el-tag>
+          <el-tag v-else-if="row.status === 'checking'" type="info" size="small">检测中</el-tag>
+          <el-tooltip v-else :content="row.statusMessage || '未检测'" placement="top">
+            <el-tag type="danger" size="small">异常</el-tag>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="220" fixed="right">
+        <template #default="{ row }">
+          <el-button size="small" @click="checkStatus(row)">检测</el-button>
+          <el-button size="small" @click="browseFiles(row)">浏览</el-button>
           <el-button size="small" @click="openEdit(row)">编辑</el-button>
           <el-popconfirm title="确定删除？" @confirm="del(row.id)">
             <template #reference>
@@ -33,6 +44,36 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 文件浏览对话框 -->
+    <el-dialog v-model="browseDialogVisible" :title="`浏览文件 - ${currentBrowseAlist?.id || ''}`" width="800px">
+      <div v-loading="browseLoading" style="min-height: 300px; max-height: 500px; overflow-y: auto;">
+        <!-- 面包屑导航 -->
+        <el-breadcrumb separator="/" class="mb-16">
+          <el-breadcrumb-item @click="navigateTo('/')">根目录</el-breadcrumb-item>
+          <el-breadcrumb-item v-for="(part, index) in browsePathParts" :key="index" @click="navigateToPart(index)">
+            {{ part }}
+          </el-breadcrumb-item>
+        </el-breadcrumb>
+
+        <!-- 文件列表 -->
+        <el-table :data="browseFilesList" border stripe @row-dblclick="handleDblClick">
+          <el-table-column label="名称" min-width="200">
+            <template #default="{ row }">
+              <el-icon v-if="row.is_dir" style="color: #E6A23C"><Folder /></el-icon>
+              <el-icon v-else style="color: #67C23A"><Document /></el-icon>
+              <span style="margin-left: 8px">{{ row.name }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="size" label="大小" width="100">
+            <template #default="{ row }">
+              {{ row.is_dir ? '-' : formatSize(row.size) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="modified" label="修改时间" width="180" />
+        </el-table>
+      </div>
+    </el-dialog>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑 AList 服务器' : '添加 AList 服务器'" width="560px" destroy-on-close>
@@ -73,9 +114,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listAlist, addAlist, updateAlist, deleteAlist } from '../api'
+import { listAlist, addAlist, updateAlist, deleteAlist, checkAlistStatus, browseAlistFiles } from '../api'
 
 const list = ref([])
 const loading = ref(false)
@@ -83,6 +124,18 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref()
+
+// 文件浏览相关
+const browseDialogVisible = ref(false)
+const browseLoading = ref(false)
+const currentBrowseAlist = ref(null)
+const browsePath = ref('/')
+const browseFilesList = ref([])
+
+const browsePathParts = computed(() => {
+  if (browsePath.value === '/') return []
+  return browsePath.value.split('/').filter(p => p)
+})
 
 const defaultForm = () => ({
   id: '',
@@ -105,10 +158,99 @@ async function load() {
   loading.value = true
   try {
     const res = await listAlist()
-    list.value = res.data
+    list.value = res.data.map(item => ({
+      ...item,
+      status: 'unknown',
+      statusMessage: '未检测'
+    }))
   } finally {
     loading.value = false
   }
+}
+
+// 检测 AList 状态
+async function checkStatus(row) {
+  row.status = 'checking'
+  row.statusMessage = '检测中...'
+  try {
+    const res = await checkAlistStatus(row.id)
+    if (res.data.status === 'ok') {
+      row.status = 'ok'
+      row.statusMessage = res.data.message
+      ElMessage.success(`${row.id}: ${res.data.message}`)
+    } else {
+      row.status = 'error'
+      row.statusMessage = res.data.message
+      ElMessage.error(`${row.id}: ${res.data.message}`)
+    }
+  } catch (e) {
+    row.status = 'error'
+    row.statusMessage = e.message
+    ElMessage.error(`检测失败: ${e.message}`)
+  }
+}
+
+// 浏览文件
+function browseFiles(row) {
+  currentBrowseAlist.value = row
+  browsePath.value = '/'
+  browseDialogVisible.value = true
+  loadBrowseFiles()
+}
+
+async function loadBrowseFiles() {
+  if (!currentBrowseAlist.value) return
+  
+  browseLoading.value = true
+  try {
+    const res = await browseAlistFiles(
+      currentBrowseAlist.value.id,
+      browsePath.value,
+      1,
+      100
+    )
+    browseFilesList.value = res.data.content || []
+  } catch (e) {
+    ElMessage.error('加载文件列表失败: ' + (e.response?.data?.detail || e.message))
+    browseFilesList.value = []
+  } finally {
+    browseLoading.value = false
+  }
+}
+
+// 双击文件夹进入
+function handleDblClick(row) {
+  if (row.is_dir) {
+    browsePath.value = browsePath.value === '/'
+      ? `/${row.name}`
+      : `${browsePath.value}/${row.name}`
+    loadBrowseFiles()
+  }
+}
+
+// 导航到指定路径
+function navigateTo(path) {
+  browsePath.value = path
+  loadBrowseFiles()
+}
+
+// 导航到面包屑部分
+function navigateToPart(index) {
+  const path = '/' + browsePathParts.value.slice(0, index + 1).join('/')
+  navigateTo(path)
+}
+
+// 格式化文件大小
+function formatSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let i = 0
+  let size = bytes
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024
+    i++
+  }
+  return `${size.toFixed(1)} ${units[i]}`
 }
 
 function openAdd() {

@@ -80,12 +80,24 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="源目录" prop="source_dir">
-              <el-input v-model="form.source_dir" placeholder="/ani" />
+              <el-input v-model="form.source_dir" placeholder="/ani">
+                <template #append>
+                  <el-button @click="openDirPicker('source_dir')">
+                    <el-icon><FolderOpened /></el-icon>
+                  </el-button>
+                </template>
+              </el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="输出目录" prop="target_dir">
-              <el-input v-model="form.target_dir" placeholder="/media/ani" />
+              <el-input v-model="form.target_dir" placeholder="/media/ani">
+                <template #append>
+                  <el-button @click="openDirPicker('target_dir')">
+                    <el-icon><FolderOpened /></el-icon>
+                  </el-button>
+                </template>
+              </el-input>
             </el-form-item>
           </el-col>
         </el-row>
@@ -183,6 +195,9 @@
         <el-button type="primary" @click="submit" :loading="submitting">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 目录选择器 -->
+    <AlistDirectoryPicker v-model="dirPickerVisible" @select="handleDirSelect" />
   </div>
 </template>
 
@@ -193,6 +208,7 @@ import {
   listAlist2Strm, addAlist2Strm, updateAlist2Strm, deleteAlist2Strm,
   runTask, getTaskStatus, getTaskRunLogs
 } from '../api'
+import AlistDirectoryPicker from '../components/AlistDirectoryPicker.vue'
 
 const list = ref([])
 const loading = ref(false)
@@ -207,6 +223,10 @@ const runLogs = ref([])
 const runStatus = ref({ running: false, exit_code: null })
 const logBox = ref()
 let pollTimer = null
+
+// 目录选择器
+const dirPickerVisible = ref(false)
+const currentDirField = ref('') // 'source_dir' or 'target_dir'
 
 const defaultForm = () => ({
   id: '', cron: '', alist: '', source_dir: '', target_dir: '',
@@ -254,6 +274,23 @@ async function submit() {
 }
 
 async function del(id) { await deleteAlist2Strm(id); ElMessage.success('已删除'); load() }
+
+// 打开目录选择器
+function openDirPicker(field) {
+  currentDirField.value = field
+  dirPickerVisible.value = true
+}
+
+// 处理目录选择
+function handleDirSelect({ alistId, path }) {
+  if (currentDirField.value === 'source_dir') {
+    form.value.source_dir = path
+    ElMessage.success(`已选择源目录: ${path}`)
+  } else if (currentDirField.value === 'target_dir') {
+    form.value.target_dir = path
+    ElMessage.success(`已选择输出目录: ${path}`)
+  }
+}
 
 async function runNow(id) {
   running.value[id] = true

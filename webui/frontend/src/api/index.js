@@ -11,6 +11,9 @@ export const listAlist = () => api.get('/alist')
 export const addAlist = (item) => api.post('/alist', item)
 export const updateAlist = (id, item) => api.put(`/alist/${encodeURIComponent(id)}`, item)
 export const deleteAlist = (id) => api.delete(`/alist/${encodeURIComponent(id)}`)
+export const checkAlistStatus = (id) => api.get(`/alist/${encodeURIComponent(id)}/status`)
+export const browseAlistFiles = (id, path = '/', page = 1, perPage = 100) => 
+  api.get(`/alist/${encodeURIComponent(id)}/browse`, { params: { path, page, per_page: perPage } })
 
 // 媒体服务器
 export const listMediaServers = () => api.get('/media_servers')

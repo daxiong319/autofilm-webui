@@ -288,6 +288,120 @@ async def delete_alist(alist_id: str, _=Depends(verify_token)):
     return {"ok": True}
 
 # ──────────────────────────────────────────────
+# API: AList 状态检测 & 文件浏览
+# ──────────────────────────────────────────────
+import httpx
+
+@app.get("/api/alist/{alist_id}/status")
+async def check_alist_status(alist_id: str, _=Depends(verify_token)):
+    """检测 AList 服务器是否可达且认证是否有效"""
+    cfg = _read_raw_config()
+    alist_config = None
+    for a in cfg.get("alist", []):
+        if a["id"] == alist_id:
+            alist_config = a
+            break
+    
+    if not alist_config:
+        raise HTTPException(404, "AList 不存在")
+    
+    try:
+        base_url = alist_config["base_url"].rstrip("/")
+        headers = {}
+        
+        # 使用 Token 或登录获取认证
+        if alist_config.get("token"):
+            headers["Authorization"] = alist_config["token"]
+        else:
+            # 尝试用户名密码登录
+            login_data = {
+                "username": alist_config.get("username", "admin"),
+                "password": alist_config.get("password", ""),
+                "otp_code": alist_config.get("otp_code", "")
+            }
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(f"{base_url}/api/auth/login", json=login_data)
+                if resp.status_code != 200:
+                    return {"status": "error", "message": "登录失败", "code": resp.status_code}
+                token_data = resp.json()
+                headers["Authorization"] = token_data.get("data", {}).get("token", "")
+        
+        # 测试访问根目录
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{base_url}/api/fs/list", headers=headers, json={"path": "/", "page": 1, "per_page": 1})
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("code") == 200:
+                    return {"status": "ok", "message": "连接成功"}
+                else:
+                    return {"status": "error", "message": data.get("message", "未知错误")}
+            else:
+                return {"status": "error", "message": f"HTTP {resp.status_code}"}
+    except httpx.TimeoutException:
+        return {"status": "timeout", "message": "连接超时"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/alist/{alist_id}/browse")
+async def browse_alist_files(alist_id: str, path: str = "/", page: int = 1, per_page: int = 100, _=Depends(verify_token)):
+    """浏览 AList 文件目录"""
+    cfg = _read_raw_config()
+    alist_config = None
+    for a in cfg.get("alist", []):
+        if a["id"] == alist_id:
+            alist_config = a
+            break
+    
+    if not alist_config:
+        raise HTTPException(404, "AList 不存在")
+    
+    try:
+        base_url = alist_config["base_url"].rstrip("/")
+        headers = {}
+        
+        # 获取认证 token
+        if alist_config.get("token"):
+            headers["Authorization"] = alist_config["token"]
+        else:
+            login_data = {
+                "username": alist_config.get("username", "admin"),
+                "password": alist_config.get("password", ""),
+                "otp_code": alist_config.get("otp_code", "")
+            }
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(f"{base_url}/api/auth/login", json=login_data)
+                if resp.status_code != 200:
+                    raise HTTPException(401, "AList 登录失败")
+                token_data = resp.json()
+                headers["Authorization"] = token_data.get("data", {}).get("token", "")
+        
+        # 获取目录列表
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"{base_url}/api/fs/list",
+                headers=headers,
+                params={"path": path, "page": page, "per_page": per_page}
+            )
+            if resp.status_code != 200:
+                raise HTTPException(resp.status_code, f"请求失败: HTTP {resp.status_code}")
+            
+            data = resp.json()
+            if data.get("code") != 200:
+                raise HTTPException(400, f"AList 错误: {data.get('message')}")
+            
+            return {
+                "path": path,
+                "total": data.get("data", {}).get("total", 0),
+                "content": data.get("data", {}).get("content", [])
+            }
+    except HTTPException:
+        raise
+    except httpx.TimeoutException:
+        raise HTTPException(408, "连接超时")
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+# ──────────────────────────────────────────────
 # API: 媒体服务器
 # ──────────────────────────────────────────────
 @app.get("/api/media_servers")
