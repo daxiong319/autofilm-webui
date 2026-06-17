@@ -24,7 +24,11 @@ from pydantic import BaseModel
 CONFIG_PATH = Path(os.environ.get("AUTOFILM_CONFIG", "/config/config.yaml"))
 LOG_DIR = Path(os.environ.get("AUTOFILM_LOG_DIR", "/logs"))
 AUTOFILM_BIN = os.environ.get("AUTOFILM_BIN", "/app/autofilm")
-STATIC_DIR = Path(__file__).parent.parent / "frontend" / "dist"
+# 静态文件目录：支持两种路径（本地开发和Docker部署）
+_static_dir = Path(__file__).parent / "frontend" / "dist"
+if not _static_dir.exists():
+    _static_dir = Path(__file__).parent.parent / "frontend" / "dist"
+STATIC_DIR = _static_dir
 
 # 任务超时时间（秒），防止卡死的进程无限运行
 TASK_TIMEOUT_SECONDS = int(os.environ.get("TASK_TIMEOUT_SECONDS", "3600"))  # 默认 1 小时
