@@ -2,20 +2,33 @@ FROM python:3.12-slim
 
 WORKDIR /webui
 
-# 安装依赖
+# Install Node.js for building frontend
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Build frontend
+COPY frontend/ ./frontend/
+WORKDIR /webui/frontend
+RUN npm install && npm run build
+
+# Install Python dependencies
+WORKDIR /webui
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制后端代码
+# Copy autofilm binary from official image
+COPY --from=akimio/autofilm:latest /app/autofilm /usr/local/bin/autofilm
+RUN chmod +x /usr/local/bin/autofilm
+
+# Copy backend code
 COPY backend/ .
 
-# 复制前端构建产物（提前 npm run build）
-COPY frontend/dist/ /webui/frontend/dist/
-
-# 环境变量默认值
+# Environment variables
 ENV AUTOFILM_CONFIG=/config/config.yaml
 ENV AUTOFILM_LOG_DIR=/logs
-ENV AUTOFILM_BIN=/app/autofilm
+ENV AUTOFILM_BIN=/usr/local/bin/autofilm
 ENV WEBUI_PORT=8096
 
 EXPOSE 8096
