@@ -29,7 +29,7 @@ services:
     container_name: autofilm-webui
     restart: unless-stopped
     ports:
-      - "8096:8096"
+      - "18096:8096"  # 外部端口 18096，避免与 Emby 冲突
     volumes:
       - ./config:/config          # 与 autofilm 共享配置目录
       - ./logs:/logs              # 与 autofilm 共享日志目录
