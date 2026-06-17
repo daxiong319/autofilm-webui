@@ -597,25 +597,25 @@ async def system_status(_=Depends(verify_token)):
 # ──────────────────────────────────────────────
 # Static files and SPA fallback
 # ──────────────────────────────────────────────
-if STATIC_DIR.exists():
-    # Mount /assets directory for JS/CSS files (MUST be before catch-all routes)
-    assets_dir = STATIC_DIR / "assets"
-    if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+# Mount /assets directory for JS/CSS files (MUST be before catch-all routes)
+if STATIC_DIR.exists() and (STATIC_DIR / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
-    # Root path serves index.html
-    @app.get("/", include_in_schema=False)
-    async def serve_root_index():
+# Root path serves index.html
+@app.get("/", include_in_schema=False)
+async def serve_root_index():
+    if STATIC_DIR.exists():
         return FileResponse(str(STATIC_DIR / "index.html"))
+    raise HTTPException(404, "Frontend not built")
 
-    # SPA fallback for Vue Router history mode
-    # This catches all non-API, non-asset paths
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa_fallback(full_path: str):
-        # Don't intercept API routes (they're defined above)
-        # Don't intercept asset routes (they're mounted above)
-        # Just return index.html for client-side routing
+# SPA fallback for Vue Router history mode
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa_fallback(full_path: str):
+    # Return index.html for client-side routing
+    # API routes and /assets mount take precedence
+    if STATIC_DIR.exists():
         return FileResponse(str(STATIC_DIR / "index.html"))
+    raise HTTPException(404, "Frontend not built")
 
 if __name__ == "__main__":
     port = int(os.environ.get("WEBUI_PORT", "8096"))
