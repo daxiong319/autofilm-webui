@@ -12,7 +12,7 @@ from typing import Optional
 
 import uvicorn
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +25,9 @@ CONFIG_PATH = Path(os.environ.get("AUTOFILM_CONFIG", "/config/config.yaml"))
 LOG_DIR = Path(os.environ.get("AUTOFILM_LOG_DIR", "/logs"))
 AUTOFILM_BIN = os.environ.get("AUTOFILM_BIN", "/app/autofilm")
 STATIC_DIR = Path(__file__).parent.parent / "frontend" / "dist"
+
+# 任务超时时间（秒），防止卡死的进程无限运行
+TASK_TIMEOUT_SECONDS = int(os.environ.get("TASK_TIMEOUT_SECONDS", "3600"))  # 默认 1 小时
 
 app = FastAPI(title="AutoFilm WebUI", version="1.0.0")
 
@@ -413,20 +416,46 @@ def run_task_now(task_id: str):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                start_new_session=True,  # 创建新进程组，便于超时后清理
             )
             _running_tasks[task_id] = proc
         except FileNotFoundError:
             return {"ok": False, "message": f"autofilm 可执行文件不存在: {AUTOFILM_BIN}"}
 
     def _stream_logs():
-        for line in proc.stdout:
+        try:
+            for line in proc.stdout:
+                with _running_lock:
+                    _task_logs.setdefault(task_id, []).append(line.rstrip())
+                    if len(_task_logs[task_id]) > 2000:
+                        _task_logs[task_id] = _task_logs[task_id][-2000:]
+        except ValueError:
+            pass  # 进程已关闭 stdout
+        finally:
+            proc.wait()
+
+    def _watchdog():
+        """监控进程，超时后强制终止"""
+        try:
+            proc.wait(timeout=TASK_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            import signal
             with _running_lock:
-                _task_logs.setdefault(task_id, []).append(line.rstrip())
-                if len(_task_logs[task_id]) > 2000:
-                    _task_logs[task_id] = _task_logs[task_id][-2000:]
-        proc.wait()
+                _task_logs.setdefault(task_id, []).append(
+                    f"[WARNING] 任务超时（{TASK_TIMEOUT_SECONDS}秒），正在强制终止..."
+                )
+            try:
+                import os
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)  # 发送 SIGTERM 到整个进程组
+                proc.wait(timeout=5)
+            except (ProcessLookupError, subprocess.TimeoutExpired):
+                proc.kill()  # SIGTERM 失败，直接 SIGKILL
+                proc.wait()
+            with _running_lock:
+                _task_logs.setdefault(task_id, []).append("[ERROR] 任务已因超时被强制终止")
 
     threading.Thread(target=_stream_logs, daemon=True).start()
+    threading.Thread(target=_watchdog, daemon=True).start()
     return {"ok": True, "message": f"任务 '{task_id}' 已启动"}
 
 
@@ -437,6 +466,9 @@ def task_status(task_id: str):
         if proc is None:
             return {"running": False, "exit_code": None}
         code = proc.poll()
+        # 任务已结束，清理字典防止内存泄漏
+        if code is not None:
+            del _running_tasks[task_id]
         return {"running": code is None, "exit_code": code}
 
 
@@ -475,21 +507,28 @@ def get_log_file(filename: str, tail: int = 500):
 
 
 @app.get("/api/logs/{filename}/stream")
-async def stream_log(filename: str):
+async def stream_log(filename: str, request: Request):
     """SSE 实时推送最新日志"""
     log_path = LOG_DIR / filename
     if not log_path.exists():
         raise HTTPException(404, "日志文件不存在")
 
     async def event_gen():
-        with open(log_path, encoding="utf-8", errors="replace") as f:
-            f.seek(0, 2)  # 跳到文件末尾
-            while True:
-                line = f.readline()
-                if line:
-                    yield f"data: {line.rstrip()}\n\n"
-                else:
-                    await asyncio.sleep(0.5)
+        try:
+            with open(log_path, encoding="utf-8", errors="replace") as f:
+                f.seek(0, 2)  # 跳到文件末尾
+                while True:
+                    # 检查客户端是否已断开连接
+                    if await request.is_disconnected():
+                        break
+                    line = f.readline()
+                    if line:
+                        yield f"data: {line.rstrip()}\n\n"
+                    else:
+                        await asyncio.sleep(0.5)
+        except (ConnectionError, OSError):
+            # 客户端断开连接时静默退出
+            pass
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")
 

@@ -170,5 +170,5 @@ async fn run_single_task(
     }
 
     error!(task_id = %task_id, "未找到匹配的任务 ID");
-    Ok(())
+    Err(format!("任务 ID '{}' 不存在", task_id).into())
 }
