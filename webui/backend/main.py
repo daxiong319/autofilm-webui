@@ -595,8 +595,23 @@ async def system_status(_=Depends(verify_token)):
     }
 
 # ──────────────────────────────────────────────
+# 静态文件服务（必须在 SPA 路由之前）
+# ──────────────────────────────────────────────
+if STATIC_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
+
+# ──────────────────────────────────────────────
 # SPA 路由兜底（解决刷新 404）
 # ──────────────────────────────────────────────
+@app.get("/")
+async def serve_root():
+    """根路径返回 index.html"""
+    if STATIC_DIR.exists():
+        index_file = STATIC_DIR / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+    raise HTTPException(404, "前端文件不存在")
+
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     """SPA 路由兜底：非 /api/* 请求都返回 index.html"""
@@ -607,12 +622,6 @@ async def serve_spa(full_path: str):
         if index_file.exists():
             return FileResponse(str(index_file))
     raise HTTPException(404, "前端文件不存在")
-
-# ──────────────────────────────────────────────
-# 静态文件服务
-# ──────────────────────────────────────────────
-if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
 if __name__ == "__main__":
     port = int(os.environ.get("WEBUI_PORT", "8096"))
